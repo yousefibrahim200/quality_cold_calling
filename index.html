@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Call Center QA Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+  tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'] } } } };
+</script>
+<style>
+  :root {
+    --bg: #07080c;
+    --surface: #121620;
+    --blue: #2563eb;
+    --blue-light: #3b82f6;
+  }
+  html, body { min-height: 100%; }
+  body {
+    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    background:
+      radial-gradient(900px 480px at 15% -8%, rgba(37,99,235,.20), transparent 62%),
+      radial-gradient(700px 420px at 100% 0%, rgba(59,130,246,.10), transparent 60%),
+      radial-gradient(900px 500px at 50% 125%, rgba(37,99,235,.10), transparent 60%),
+      var(--bg);
+    background-attachment: fixed;
+    color: #e2e8f0;
+    letter-spacing: -0.005em;
+  }
+
+  /* Floating glass surfaces: no hard borders, soft elevation + inner highlight */
+  .glass {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.05) 0%, rgba(255,255,255,.012) 100%),
+      rgba(18,22,32,.66);
+    border: 1px solid rgba(255,255,255,.045);
+    backdrop-filter: blur(22px) saturate(140%);
+    -webkit-backdrop-filter: blur(22px) saturate(140%);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.07),
+      inset 0 -1px 0 rgba(0,0,0,.35),
+      0 24px 48px -24px rgba(0,0,0,.85),
+      0 4px 14px rgba(0,0,0,.35);
+  }
+  .glass-soft {
+    background: rgba(255,255,255,.035);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 6px 18px -8px rgba(0,0,0,.6);
+  }
+  .glass-input {
+    background: rgba(5,6,10,.55);
+    border: 1px solid rgba(255,255,255,.05);
+    color: #f1f5f9;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,.45);
+    transition: border-color .2s, box-shadow .2s, background .2s;
+  }
+  .glass-input::placeholder { color: rgba(148,163,184,.55); }
+  .glass-input:focus {
+    outline: none;
+    border-color: rgba(59,130,246,.65);
+    box-shadow: inset 0 2px 6px rgba(0,0,0,.45), 0 0 0 3px rgba(37,99,235,.22);
+  }
+
+  .btn-primary {
+    background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+    color: #fff;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 10px 24px -8px rgba(37,99,235,.65);
+    transition: transform .15s ease, box-shadow .25s ease, filter .2s ease;
+  }
+  .btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    filter: brightness(1.06);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 14px 38px -6px rgba(59,130,246,.85), 0 0 0 4px rgba(59,130,246,.12);
+  }
+  .btn-primary:active:not(:disabled) { transform: translateY(0); }
+  .btn-primary:disabled { opacity: .65; cursor: not-allowed; }
+  .btn-ghost {
+    background: rgba(255,255,255,.04);
+    color: #cbd5e1;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+    transition: background .2s, color .2s, box-shadow .2s;
+  }
+  .btn-ghost:hover { background: rgba(59,130,246,.12); color: #fff; box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 24px -6px rgba(59,130,246,.5); }
+
+  .drop-active { background: rgba(37,99,235,.12) !important; box-shadow: inset 0 0 0 1px rgba(59,130,246,.7), 0 0 40px -10px rgba(59,130,246,.6) !important; }
+  .fade-in { animation: fadeIn .55s cubic-bezier(.2,.7,.2,1) both; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(12px);} to { opacity: 1; transform: none; } }
+  .spinner { width: 18px; height: 18px; border: 2.5px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: rgba(148,163,184,.22); border-radius: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  .ring-score { transition: stroke-dashoffset .9s ease; }
+  tbody tr.hist-row { transition: background .15s; }
+  tbody tr.hist-row:hover { background: rgba(37,99,235,.09); cursor: pointer; }
+  .sidebar { transition: transform .3s ease; }
+  details > summary { list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+  details[open] .chev { transform: rotate(180deg); }
+  .chev { transition: transform .25s ease; }
+  .eyebrow { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #64748b; font-weight: 600; }
+</style>
+</head>
+<body class="antialiased">
+
+<!-- Toast -->
+<div id="toast" class="fixed top-4 right-4 z-[100] max-w-sm hidden"></div>
+
+<!-- Mobile top bar -->
+<header class="lg:hidden sticky top-0 z-40 glass flex items-center justify-between px-4 py-3">
+  <div class="flex items-center gap-2.5 font-semibold text-sm">
+    <span class="w-8 h-8 rounded-lg btn-primary flex items-center justify-center">
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l3-8 4 16 3-8h5"/></svg>
+    </span>
+    AI Call Center QA
+  </div>
+  <button id="menuBtn" aria-label="Open setup" class="btn-ghost px-3.5 py-2 rounded-lg text-sm font-medium">Setup</button>
+</header>
+
+<div class="flex min-h-screen">
+
+  <!-- SIDEBAR -->
+  <aside id="sidebar" class="sidebar fixed lg:sticky top-0 left-0 z-50 h-screen w-80 max-w-[88vw] -translate-x-full lg:translate-x-0 glass lg:m-3 lg:h-[calc(100vh-1.5rem)] lg:rounded-3xl p-6 overflow-y-auto flex flex-col gap-6">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl btn-primary flex items-center justify-center">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l3-8 4 16 3-8h5"/></svg>
+        </div>
+        <div>
+          <div class="font-bold leading-tight text-[15px] text-white">AI Call Center</div>
+          <div class="text-xs text-slate-400 leading-tight">QA Platform</div>
+        </div>
+      </div>
+      <button id="closeMenu" class="lg:hidden text-slate-300 p-1" aria-label="Close menu">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+
+    <div>
+      <div class="eyebrow mb-3">Configuration</div>
+      <label for="apiKey" class="block text-sm font-semibold mb-1.5 text-slate-200">Gemini API Key</label>
+      <input id="apiKey" type="password" autocomplete="off" placeholder="Paste your free key here" class="glass-input w-full rounded-xl px-3.5 py-2.5 text-sm">
+      <p class="text-xs text-slate-400 mt-1.5 leading-relaxed">Get a free key from <a class="text-blue-400 hover:text-blue-300 underline underline-offset-2" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a>. It is stored only in this browser.</p>
+    </div>
+
+    <div>
+      <label for="agentName" class="block text-sm font-semibold mb-1.5 text-slate-200">Agent Name</label>
+      <input id="agentName" type="text" maxlength="80" placeholder="e.g. Sarah Johnson" class="glass-input w-full rounded-xl px-3.5 py-2.5 text-sm">
+    </div>
+
+    <div class="flex-1 flex flex-col min-h-[220px]">
+      <label for="playbook" class="block text-sm font-semibold mb-1.5 text-slate-200">Campaign Playbook / Script</label>
+      <textarea id="playbook" class="glass-input w-full flex-1 min-h-[220px] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed resize-y"></textarea>
+      <button id="resetPlaybook" class="text-xs text-blue-400 hover:text-blue-300 mt-2 self-start underline underline-offset-2">Restore default script</button>
+    </div>
+
+    <p class="text-[11px] text-slate-500 leading-relaxed">Free to use. Runs entirely in your browser. Audits are stored on this device only.</p>
+  </aside>
+  <div id="backdrop" class="fixed inset-0 z-40 bg-black/70 hidden lg:hidden"></div>
+
+  <!-- MAIN -->
+  <main class="flex-1 min-w-0 px-4 sm:px-8 py-6 lg:py-10 max-w-6xl mx-auto w-full">
+
+    <div class="mb-7 hidden lg:block">
+      <div class="eyebrow mb-2">Quality Assurance</div>
+      <h2 class="text-3xl font-extrabold tracking-tight text-white">Audit any call in one click</h2>
+      <p class="text-slate-400 mt-1.5">Upload a call recording or paste a transcript, run the audit, and receive captions and a complete quality report.</p>
+    </div>
+
+    <!-- Input workspace -->
+    <section class="glass rounded-3xl p-5 sm:p-7">
+      <div id="dropZone" class="relative rounded-2xl glass-soft transition p-3">
+        <div id="audioPanel" class="hidden mb-3 rounded-xl p-4" style="background:rgba(37,99,235,.10);box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 0 0 1px rgba(59,130,246,.22)">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <span class="w-9 h-9 rounded-lg btn-primary flex items-center justify-center shrink-0">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>
+              </span>
+              <div class="min-w-0">
+                <div id="audioName" class="text-sm font-semibold text-white truncate"></div>
+                <div id="audioMeta" class="text-xs text-slate-400"></div>
+              </div>
+            </div>
+            <button id="removeAudio" class="text-xs text-slate-400 hover:text-white shrink-0">Remove</button>
+          </div>
+          <audio id="audioPlayer" controls class="w-full mt-3 h-10"></audio>
+        </div>
+        <textarea id="transcript" rows="11" placeholder="Upload a call recording (MP3, WAV, M4A, AAC, OGG, FLAC) using the button below, or drag and drop it here.&#10;&#10;Or paste a written transcript / notes instead. Text files (.txt, .srt, .vtt, .csv) also work.&#10;&#10;Text example:&#10;Agent: Hello, thank you for calling...&#10;Customer: Hi, I have a question about my bill..." class="w-full bg-transparent text-sm sm:text-base leading-relaxed resize-y focus:outline-none placeholder-slate-500 p-2 text-slate-100"></textarea>
+        <div class="flex flex-wrap items-center justify-between gap-2 px-2 pb-1 text-xs text-slate-400">
+          <span id="charCount">0 characters</span>
+          <div class="flex items-center gap-4">
+            <label class="cursor-pointer text-blue-400 hover:text-blue-300 inline-flex items-center gap-1.5 font-medium">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5M5 21h14"/></svg>
+              Upload call recording or file
+              <input id="fileInput" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.oga,.opus,.flac,.aiff,.aif,.webm,.mp4,.txt,.srt,.vtt,.csv,.md,.log,text/plain" class="hidden">
+            </label>
+            <button id="clearTranscript" class="hover:text-white">Clear</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-5">
+        <button id="runBtn" class="btn-primary w-full rounded-2xl py-4 px-6 text-base sm:text-lg font-bold tracking-tight flex items-center justify-center gap-3">
+          <span id="runIcon" class="flex items-center"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span><span id="runLabel">Run AI QA Audit</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Results -->
+    <section id="results" class="mt-8 hidden space-y-6"></section>
+
+    <!-- History -->
+    <section class="mt-12">
+      <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-4">
+        <div>
+          <div class="eyebrow mb-1.5">Records</div>
+          <h3 class="text-xl font-bold text-white">Audit History</h3>
+          <p class="text-sm text-slate-400">Every audit is saved automatically. Select a row to reopen it.</p>
+        </div>
+        <div class="flex flex-wrap gap-2.5">
+          <button id="exportBtn" class="btn-primary rounded-xl px-5 py-3 font-semibold text-sm inline-flex items-center gap-2">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg>
+            Download Complete QA Excel Report (.xlsx)
+          </button>
+          <button id="clearHistory" class="btn-ghost rounded-xl px-4 py-3 text-sm font-medium">Clear History</button>
+        </div>
+      </div>
+      <div class="glass rounded-3xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm min-w-[720px]">
+            <thead class="text-slate-400 text-left" style="background:rgba(255,255,255,.03)">
+              <tr>
+                <th class="px-5 py-3.5 font-semibold text-xs uppercase tracking-wider">Agent Name</th>
+                <th class="px-5 py-3.5 font-semibold text-xs uppercase tracking-wider">Date / Time</th>
+                <th class="px-5 py-3.5 font-semibold text-xs uppercase tracking-wider text-center">Score</th>
+                <th class="px-5 py-3.5 font-semibold text-xs uppercase tracking-wider text-center">Adherence</th>
+                <th class="px-5 py-3.5 font-semibold text-xs uppercase tracking-wider">Summary</th>
+              </tr>
+            </thead>
+            <tbody id="historyBody"></tbody>
+          </table>
+        </div>
+        <div id="historyEmpty" class="p-12 text-center text-slate-400 hidden">No audits yet. Run your first audit above.</div>
+      </div>
+    </section>
+
+    <footer class="text-center text-xs text-slate-500 mt-12 pb-6">AI Call Center QA Platform. AI scoring is a guide; always apply human judgment.</footer>
+  </main>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ------------------------- Constants ------------------------- */
+  const STORE = { history: 'qa_history_v1', key: 'qa_api_key', agent: 'qa_agent', playbook: 'qa_playbook' };
+  // Model used for every request: models/gemini-3.8-flash:generateContent
+  const MODELS = ['gemini-3.8-flash'];
+  const MAX_TRANSCRIPT = 120000;
+  const MAX_HISTORY = 500;
+
+  const DEFAULT_PLAYBOOK =
+`1. Greet the customer warmly and state your name and company.
+2. Verify the customer's identity (full name and account/phone number).
+3. Ask how you can help and listen without interrupting.
+4. Show empathy and acknowledge the customer's concern.
+5. Offer a clear solution or next step, explaining it simply.
+6. Offer any relevant product, upgrade or promotion (only if appropriate).
+7. Confirm the customer is satisfied: "Is there anything else I can help with?"
+8. Close politely, thank the customer, and recap any follow-up actions.`;
+
+  /* Minimal professional SVG icons */
+  const svg = (inner, cls = 'w-4 h-4') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+  const ICON = {
+    arrow: svg('<path d="M5 12h14M13 6l6 6-6 6"/>', 'w-5 h-5'),
+    check: svg('<path d="M5 12l5 5 9-10"/>'),
+    flag: svg('<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>'),
+    alert: svg('<path d="M12 9v4M12 17h.01M10.3 3.9L2.4 18a2 2 0 001.7 3h15.8a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/>'),
+    info: svg('<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1"/>'),
+    doc: svg('<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-5-5zM14 3v5h5M9 13h6M9 17h4"/>', 'w-4 h-4'),
+    list: svg('<path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/>', 'w-4 h-4'),
+    help: svg('<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 015 .5c0 1.5-2.5 2-2.5 3.5M12 17h.01"/>', 'w-4 h-4'),
+    ban: svg('<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>', 'w-4 h-4'),
+    bulb: svg('<path d="M9 18h6M10 21h4M12 3a6 6 0 00-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0012 3z"/>', 'w-4 h-4'),
+    chat: svg('<path d="M21 12a8 8 0 01-11.6 7.1L4 20l1-4.4A8 8 0 1121 12z"/>', 'w-4 h-4'),
+    chart: svg('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>', 'w-4 h-4'),
+    chev: svg('<path d="M6 9l6 6 6-6"/>', 'w-4 h-4 chev')
+  };
+
+  const $ = id => document.getElementById(id);
+  const el = {
+    apiKey: $('apiKey'), agentName: $('agentName'), playbook: $('playbook'), resetPlaybook: $('resetPlaybook'),
+    transcript: $('transcript'), charCount: $('charCount'), clearTranscript: $('clearTranscript'), fileInput: $('fileInput'),
+    dropZone: $('dropZone'), runBtn: $('runBtn'), runIcon: $('runIcon'), runLabel: $('runLabel'),
+    results: $('results'), historyBody: $('historyBody'), historyEmpty: $('historyEmpty'),
+    exportBtn: $('exportBtn'), clearHistory: $('clearHistory'), toast: $('toast'),
+    audioPanel: $('audioPanel'), audioName: $('audioName'), audioMeta: $('audioMeta'), audioPlayer: $('audioPlayer'), removeAudio: $('removeAudio'),
+    sidebar: $('sidebar'), backdrop: $('backdrop'), menuBtn: $('menuBtn'), closeMenu: $('closeMenu')
+  };
+
+  /* ------------------------- Utilities ------------------------- */
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
+  const num = (v, d = 0) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
+  const strArr = v => Array.isArray(v) ? v.map(x => String(x ?? '').trim()).filter(Boolean) : (typeof v === 'string' && v.trim() ? [v.trim()] : []);
+  const fmtDate = iso => { try { return new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }); } catch { return iso; } };
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+  function lsGet(k, fallback = '') { try { const v = localStorage.getItem(k); return v === null ? fallback : v; } catch { return fallback; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); return true; } catch { return false; } }
+
+  function toast(msg, type = 'error', ms = 6000) {
+    const tone = {
+      error: 'text-red-100 bg-red-500/15 shadow-[0_0_30px_-8px_rgba(239,68,68,.55)]',
+      success: 'text-emerald-100 bg-emerald-500/15 shadow-[0_0_30px_-8px_rgba(16,185,129,.5)]',
+      info: 'text-blue-100 bg-blue-500/15 shadow-[0_0_30px_-8px_rgba(59,130,246,.55)]'
+    };
+    const icon = { error: ICON.alert, success: ICON.check, info: ICON.info };
+    el.toast.innerHTML = `<div class="glass ${tone[type]} rounded-2xl px-4 py-3 text-sm flex gap-3 items-start fade-in"><span class="mt-0.5 shrink-0">${icon[type]}</span><span class="flex-1">${esc(msg)}</span></div>`;
+    el.toast.classList.remove('hidden');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => el.toast.classList.add('hidden'), ms);
+  }
+
+  function scoreStyle(score) {
+    if (score >= 8) return { text: 'text-emerald-300', bg: 'bg-emerald-500/15', stroke: '#34d399', label: 'Excellent' };
+    if (score >= 6) return { text: 'text-amber-300', bg: 'bg-amber-500/15', stroke: '#fbbf24', label: 'Needs Polish' };
+    if (score >= 4) return { text: 'text-orange-300', bg: 'bg-orange-500/15', stroke: '#fb923c', label: 'Below Standard' };
+    return { text: 'text-red-300', bg: 'bg-red-500/15', stroke: '#f87171', label: 'Critical' };
+  }
+
+  /* ------------------------- Persistence ------------------------- */
+  function loadHistory() {
+    try { const a = JSON.parse(lsGet(STORE.history, '[]')); return Array.isArray(a) ? a : []; } catch { return []; }
+  }
+  function saveHistory(list) {
+    let arr = list.slice(0, MAX_HISTORY);
+    while (arr.length) {
+      if (lsSet(STORE.history, JSON.stringify(arr))) return true;
+      arr = arr.slice(0, Math.floor(arr.length * 0.8)); // free space if quota exceeded
+      if (arr.length < 2) break;
+    }
+    return false;
+  }
+
+  /* ------------------------- Settings init ------------------------- */
+  el.apiKey.value = lsGet(STORE.key);
+  el.agentName.value = lsGet(STORE.agent);
+  el.playbook.value = lsGet(STORE.playbook) || DEFAULT_PLAYBOOK;
+  el.apiKey.addEventListener('input', () => lsSet(STORE.key, el.apiKey.value.trim()));
+  el.agentName.addEventListener('input', () => lsSet(STORE.agent, el.agentName.value));
+  el.playbook.addEventListener('input', () => lsSet(STORE.playbook, el.playbook.value));
+  el.resetPlaybook.addEventListener('click', () => { el.playbook.value = DEFAULT_PLAYBOOK; lsSet(STORE.playbook, DEFAULT_PLAYBOOK); toast('Default script restored.', 'success', 2500); });
+
+  /* Sidebar (mobile) */
+  const openMenu = () => { el.sidebar.classList.remove('-translate-x-full'); el.backdrop.classList.remove('hidden'); };
+  const closeMenu = () => { el.sidebar.classList.add('-translate-x-full'); el.backdrop.classList.add('hidden'); };
+  el.menuBtn.addEventListener('click', openMenu);
+  el.closeMenu.addEventListener('click', closeMenu);
+  el.backdrop.addEventListener('click', closeMenu);
+
+  /* Transcript input */
+  const updateCount = () => { el.charCount.textContent = `${el.transcript.value.length.toLocaleString()} characters`; };
+  el.transcript.addEventListener('input', updateCount);
+  el.clearTranscript.addEventListener('click', () => { el.transcript.value = ''; updateCount(); el.transcript.focus(); });
+
+  /* ---- Audio handling (recording -> Base64 -> Gemini inlineData) ---- */
+  const AUDIO_EXT = { mp3: 'audio/mp3', wav: 'audio/wav', m4a: 'audio/mp4', mp4: 'audio/mp4', aac: 'audio/aac', ogg: 'audio/ogg', oga: 'audio/ogg', opus: 'audio/ogg', flac: 'audio/flac', aiff: 'audio/aiff', aif: 'audio/aiff', webm: 'audio/webm' };
+  const MAX_AUDIO_BYTES = 14 * 1024 * 1024; // inline request limit is ~20 MB after Base64 growth
+  let audio = null, audioUrl = null;
+
+  function audioMime(file) {
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (AUDIO_EXT[ext]) return AUDIO_EXT[ext];
+    if (file.type && file.type.startsWith('audio/')) return file.type;
+    return '';
+  }
+  const fmtSize = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+
+  function clearAudio() {
+    audio = null;
+    if (audioUrl) { URL.revokeObjectURL(audioUrl); audioUrl = null; }
+    el.audioPlayer.pause();
+    el.audioPlayer.removeAttribute('src');
+    el.audioPlayer.load();
+    el.audioPanel.classList.add('hidden');
+  }
+
+  function loadAudio(file) {
+    const mime = audioMime(file);
+    if (file.size > MAX_AUDIO_BYTES) { toast(`This recording is ${fmtSize(file.size)}. Please use a file under ${fmtSize(MAX_AUDIO_BYTES)} (compress to MP3 or trim the call).`); return; }
+    const r = new FileReader();
+    r.onload = () => {
+      const comma = String(r.result || '').indexOf(',');
+      const b64 = comma > -1 ? String(r.result).slice(comma + 1) : '';
+      if (!b64) { toast('Could not read that recording.'); return; }
+      clearAudio();
+      audio = { name: file.name, mime, base64: b64, size: file.size };
+      audioUrl = URL.createObjectURL(file);
+      el.audioPlayer.src = audioUrl;
+      el.audioName.textContent = file.name;
+      el.audioMeta.textContent = `${fmtSize(file.size)} - ready for transcription and audit`;
+      el.audioPanel.classList.remove('hidden');
+      toast(`Recording "${file.name}" is ready. Press Run AI QA Audit.`, 'success', 3500);
+    };
+    r.onerror = () => toast('Could not read that recording.');
+    r.readAsDataURL(file);
+  }
+  el.removeAudio.addEventListener('click', clearAudio);
+
+  function readFile(file) {
+    if (!file) return;
+    if (audioMime(file)) { loadAudio(file); return; }
+    if (file.size > 2 * 1024 * 1024) { toast('That file is too large (max 2 MB).'); return; }
+    const r = new FileReader();
+    r.onload = () => {
+      let text = String(r.result || '');
+      // Clean subtitle formats (.srt / .vtt) into plain lines
+      if (/\.(srt|vtt)$/i.test(file.name)) {
+        text = text.replace(/^WEBVTT.*$/m, '')
+          .replace(/^\d+\s*$/gm, '')
+          .replace(/^\d{1,2}:\d{2}[:.,\d]*\s*-->.*$/gm, '')
+          .replace(/<[^>]+>/g, '')
+          .replace(/\n{2,}/g, '\n').trim();
+      }
+      el.transcript.value = text.slice(0, MAX_TRANSCRIPT);
+      updateCount();
+      toast(`Loaded "${file.name}".`, 'success', 2500);
+    };
+    r.onerror = () => toast('Could not read that file.');
+    r.readAsText(file);
+  }
+  el.fileInput.addEventListener('change', e => { readFile(e.target.files[0]); e.target.value = ''; });
+  ['dragenter', 'dragover'].forEach(ev => el.dropZone.addEventListener(ev, e => { e.preventDefault(); el.dropZone.classList.add('drop-active'); }));
+  ['dragleave', 'drop'].forEach(ev => el.dropZone.addEventListener(ev, e => { e.preventDefault(); el.dropZone.classList.remove('drop-active'); }));
+  el.dropZone.addEventListener('drop', e => { const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) readFile(f); });
+
+  /* ------------------------- Gemini engine ------------------------- */
+  function buildPrompt(agent, playbook, transcript, isAudio) {
+    const callBlock = isAudio
+      ? 'CALL RECORDING: the attached audio file. It is the full call to audit.'
+      : `CALL TRANSCRIPT / NOTES:\n"""\n${transcript}\n"""`;
+    return `You are a senior call-center Quality Assurance auditor. Audit the call below strictly against the supplied Campaign Playbook.
+
+AGENT NAME: ${agent}
+
+CAMPAIGN PLAYBOOK / SCRIPT:
+"""
+${playbook}
+"""
+
+${callBlock}
+
+INSTRUCTIONS:
+${isAudio ? '- AUDIO: Listen to the whole recording and transcribe it as accurate captions, word for word, in the language(s) actually spoken. Do not summarize or skip parts. Add a "time" field (mm:ss, start of the turn) to every turn. If a part is inaudible, write [inaudible].\n' : ''}- Rebuild the conversation as an ordered list of turns, labelling each turn speaker exactly "Agent" or "Customer". ${isAudio ? 'Tell the speakers apart by voice and context (the agent is the call-center employee).' : 'If the transcript has no labels, infer who is speaking. If the input is only notes, write the most faithful conversation you can without inventing facts.'}
+- overall_score: integer 1-10 for overall call quality (tone, empathy, accuracy, resolution, compliance).
+- adherence_score: integer 1-10 for how closely the agent followed the playbook.
+- agent_talk_percent: integer 0-100, share of words spoken by the Agent. customer_talk_percent = 100 - agent_talk_percent.
+- summary: 2-3 sentences describing the customer's intent and the outcome.
+- missed_steps: array of playbook steps the agent skipped or did poorly (short, specific). Empty array if none.
+- unanswered_questions: array of customer questions that were never properly answered. Empty array if none.
+- negative_phrases: array of negative, unprofessional, dismissive or risky phrases used (quote briefly). Empty array if none.
+- coaching_tip: ONE specific, actionable coaching recommendation for the supervisor.
+- Write all text in the same language as the transcript (default English). Do not use emojis.
+
+Return ONLY valid JSON, no markdown, with exactly these keys:
+{"overall_score":0,"adherence_score":0,"agent_talk_percent":0,"customer_talk_percent":0,"summary":"","missed_steps":[],"unanswered_questions":[],"negative_phrases":[],"coaching_tip":"","transcript":[{"time":"00:00","speaker":"Agent","text":""}]}
+(For text input without timing, leave "time" as an empty string.)`;
+  }
+
+  function parseModelJson(raw) {
+    let t = String(raw || '').trim();
+    t = t.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+    try { return JSON.parse(t); } catch (_) {}
+    const s = t.indexOf('{'), e = t.lastIndexOf('}');
+    if (s !== -1 && e > s) { try { return JSON.parse(t.slice(s, e + 1)); } catch (_) {} }
+    throw new Error('The AI returned an unreadable answer. Please run the audit again.');
+  }
+
+  function normalize(data) {
+    if (!data || typeof data !== 'object') throw new Error('The AI returned an empty answer. Please try again.');
+    const turns = (Array.isArray(data.transcript) ? data.transcript : [])
+      .map(t => ({
+        speaker: /^cust|client|caller|عميل|العميل|زبون/i.test(String(t && t.speaker)) ? 'Customer' : 'Agent',
+        time: String((t && t.time) ?? '').trim().slice(0, 8),
+        text: String((t && t.text) ?? '').trim()
+      }))
+      .filter(t => t.text);
+
+    // Compute talk ratio from the actual turns when possible (more reliable than an estimate)
+    let agentPct = clamp(Math.round(num(data.agent_talk_percent, 50)), 0, 100);
+    if (turns.length) {
+      const wc = s => (s.match(/\S+/g) || []).length;
+      const a = turns.filter(t => t.speaker === 'Agent').reduce((n, t) => n + wc(t.text), 0);
+      const c = turns.filter(t => t.speaker === 'Customer').reduce((n, t) => n + wc(t.text), 0);
+      if (a + c > 0) agentPct = Math.round((a / (a + c)) * 100);
+    }
+    const custPct = 100 - agentPct;
+    return {
+      overall: clamp(Math.round(num(data.overall_score, 1)), 1, 10),
+      adherence: clamp(Math.round(num(data.adherence_score, 1)), 1, 10),
+      agentPct, custPct,
+      dominant: agentPct > custPct ? 'Agent' : (agentPct < custPct ? 'Customer' : 'Balanced'),
+      summary: String(data.summary || 'No summary was provided.').trim(),
+      missed: strArr(data.missed_steps),
+      unanswered: strArr(data.unanswered_questions),
+      negatives: strArr(data.negative_phrases),
+      tip: String(data.coaching_tip || 'No coaching tip was provided.').trim(),
+      turns
+    };
+  }
+
+  async function callGemini(apiKey, prompt, audioPart) {
+    let lastErr = null;
+    for (const model of MODELS) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      let res;
+      try {
+        res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: audioPart
+              ? [{ text: prompt }, { inlineData: { mimeType: audioPart.mime, data: audioPart.base64 } }]
+              : [{ text: prompt }] }],
+            generationConfig: { temperature: 0.2, responseMimeType: 'application/json', maxOutputTokens: /^gemini-1\.5/.test(model) ? 8192 : 16384 }
+          })
+        });
+      } catch (err) {
+        throw new Error('Could not reach Google. Please check your internet connection and try again.');
+      }
+
+      if (res.ok) {
+        const json = await res.json();
+        const cand = json.candidates && json.candidates[0];
+        if (!cand) {
+          const block = json.promptFeedback && json.promptFeedback.blockReason;
+          throw new Error(block ? 'Google blocked this content for safety reasons. Please review the transcript.' : 'The AI gave no answer. Please try again.');
+        }
+        const text = (cand.content && cand.content.parts || []).map(p => p.text || '').join('');
+        if (!text) throw new Error('The AI gave an empty answer. Please try again.');
+        return text;
+      }
+
+      let msg = '';
+      try { const j = await res.json(); msg = (j.error && j.error.message) || ''; } catch (_) {}
+      if (res.status === 404 || (res.status === 400 && /model|not found|not supported|deprecated/i.test(msg) && !/API key/i.test(msg))) {
+        lastErr = new Error(msg || 'Model not available'); continue; // try the next model
+      }
+      if (res.status === 400 && /API key/i.test(msg)) throw new Error('Your API key looks invalid. Please re-copy it from Google AI Studio.');
+      if (res.status === 401 || res.status === 403) throw new Error('Your API key was rejected. Please check it in the sidebar.');
+      if (res.status === 429) throw new Error('Free usage limit reached for now. Please wait a minute and try again.');
+      if (res.status === 413) throw new Error('This recording is too large to send. Please use a shorter or more compressed file.');
+      if (res.status >= 500) throw new Error('Google\'s AI service is busy right now. Please try again shortly.');
+      throw new Error(msg || `Unexpected error (${res.status}).`);
+    }
+    throw lastErr || new Error('No compatible AI model is available for your key.');
+  }
+
+  /* ------------------------- Run audit ------------------------- */
+  let busy = false;
+  function setBusy(b) {
+    busy = b;
+    el.runBtn.disabled = b;
+    el.runIcon.innerHTML = b ? '<div class="spinner"></div>' : ICON.arrow;
+    el.runLabel.textContent = b ? (audio ? 'Transcribing and analyzing call...' : 'Analyzing call...') : 'Run AI QA Audit';
+  }
+
+  async function runAudit() {
+    if (busy) return;
+    const apiKey = el.apiKey.value.trim();
+    const transcript = el.transcript.value.trim();
+    const playbook = el.playbook.value.trim() || DEFAULT_PLAYBOOK;
+    const agent = el.agentName.value.trim() || 'Unknown Agent';
+
+    if (!apiKey) { toast('Please paste your free Gemini API key in the sidebar first.'); openMenu(); el.apiKey.focus(); return; }
+    if (!audio && transcript.length < 20) { toast('Please upload a call recording or paste a transcript first.'); el.transcript.focus(); return; }
+    if (!audio && transcript.length > MAX_TRANSCRIPT) { toast(`This transcript is very long. Please keep it under ${MAX_TRANSCRIPT.toLocaleString()} characters.`); return; }
+
+    setBusy(true);
+    try {
+      const raw = await callGemini(apiKey, buildPrompt(agent, playbook, transcript, !!audio), audio);
+      const result = normalize(parseModelJson(raw));
+      const entry = { id: uid(), agent, date: new Date().toISOString(), source: audio ? 'Audio: ' + audio.name : 'Text', result };
+      const hist = loadHistory();
+      hist.unshift(entry);
+      if (!saveHistory(hist)) toast('Audit complete, but browser storage is full so it could not be saved. Please download the Excel report and clear history.');
+      renderResult(entry);
+      renderHistory();
+      el.results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (err) {
+      toast(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  el.runBtn.addEventListener('click', runAudit);
+  el.transcript.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') runAudit(); });
+
+  /* ------------------------- Rendering ------------------------- */
+  function ring(score) {
+    const st = scoreStyle(score), r = 52, c = 2 * Math.PI * r, off = c * (1 - score / 10);
+    return `<div class="relative w-32 h-32 shrink-0">
+      <svg viewBox="0 0 120 120" class="w-full h-full -rotate-90">
+        <circle cx="60" cy="60" r="${r}" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="9"/>
+        <circle class="ring-score" cx="60" cy="60" r="${r}" fill="none" stroke="${st.stroke}" stroke-width="9" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}" style="filter:drop-shadow(0 0 6px ${st.stroke}66)"/>
+      </svg>
+      <div class="absolute inset-0 flex flex-col items-center justify-center">
+        <span class="text-4xl font-extrabold tracking-tight ${st.text}">${score}</span><span class="text-xs text-slate-400">out of 10</span>
+      </div></div>`;
+  }
+
+  function listCard(title, icon, items, emptyMsg) {
+    const body = items.length
+      ? `<ul class="space-y-2">${items.map(i => `<li class="flex gap-2.5 items-start rounded-xl bg-red-500/[0.09] px-3.5 py-2.5 text-sm text-red-100" style="box-shadow:inset 3px 0 0 rgba(248,113,113,.75)"><span class="mt-0.5 text-red-300 shrink-0">${ICON.flag}</span><span>${esc(i)}</span></li>`).join('')}</ul>`
+      : `<p class="text-sm text-emerald-300 flex items-center gap-2"><span class="shrink-0">${ICON.check}</span>${esc(emptyMsg)}</p>`;
+    return `<div class="glass rounded-3xl p-5 sm:p-6"><h4 class="font-semibold mb-3.5 flex items-center gap-2 text-white"><span class="text-blue-400">${icon}</span>${esc(title)}</h4>${body}</div>`;
+  }
+
+  function renderResult(entry) {
+    const r = entry.result, os = scoreStyle(r.overall), as = scoreStyle(r.adherence);
+    const isAudioEntry = /^Audio/.test(entry.source || '');
+    const domColor = r.dominant === 'Agent' ? 'text-blue-400' : r.dominant === 'Customer' ? 'text-slate-200' : 'text-slate-300';
+
+    const transcriptHtml = r.turns.length
+      ? r.turns.map(t => {
+          const a = t.speaker === 'Agent';
+          return `<div class="flex ${a ? 'justify-start' : 'justify-end'}">
+            <div class="max-w-[88%] sm:max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${a ? 'bg-blue-500/[0.14] rounded-tl-md' : 'bg-white/[0.06] rounded-tr-md'}" style="box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 6px 16px -8px rgba(0,0,0,.7)">
+              <div class="text-[10px] font-bold uppercase tracking-[.14em] mb-1 ${a ? 'text-blue-400' : 'text-slate-400'}">${a ? 'Agent' : 'Customer'}${t.time ? ' &middot; ' + esc(t.time) : ''}</div>
+              <span class="text-slate-100">${esc(t.text)}</span>
+            </div></div>`;
+        }).join('')
+      : '<p class="text-sm text-slate-400">No structured transcript was produced for this call.</p>';
+
+    el.results.innerHTML = `
+      <div class="fade-in space-y-6">
+        <div class="flex flex-wrap items-end justify-between gap-2">
+          <div><div class="eyebrow mb-1.5">Report</div><h3 class="text-2xl font-extrabold tracking-tight text-white">Audit Report</h3></div>
+          <span class="text-sm text-slate-400">${esc(entry.agent)} &middot; ${esc(fmtDate(entry.date))}</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="glass rounded-3xl p-5 sm:p-6 flex items-center gap-5">
+            ${ring(r.overall)}
+            <div><div class="text-sm text-slate-400">Overall Call Score</div>
+              <span class="inline-block mt-1.5 px-3 py-1 rounded-full text-xs font-bold tracking-wide ${os.bg} ${os.text}">${os.label}</span></div>
+          </div>
+          <div class="glass rounded-3xl p-5 sm:p-6 flex items-center gap-5">
+            ${ring(r.adherence)}
+            <div><div class="text-sm text-slate-400">Playbook Adherence</div>
+              <span class="inline-block mt-1.5 px-3 py-1 rounded-full text-xs font-bold tracking-wide ${as.bg} ${as.text}">${as.label}</span></div>
+          </div>
+          <div class="glass rounded-3xl p-5 sm:p-6">
+            <div class="text-sm text-slate-400 mb-3">Talk-to-Listen Ratio</div>
+            <div class="flex justify-between text-sm font-semibold mb-2"><span class="text-blue-400">Agent ${r.agentPct}%</span><span class="text-slate-300">Customer ${r.custPct}%</span></div>
+            <div class="h-2.5 rounded-full overflow-hidden flex" style="background:rgba(255,255,255,.07);box-shadow:inset 0 1px 3px rgba(0,0,0,.5)"><div style="width:${r.agentPct}%;background:linear-gradient(90deg,#2563eb,#3b82f6);box-shadow:0 0 12px rgba(59,130,246,.6)"></div><div style="width:${r.custPct}%;background:rgba(148,163,184,.45)"></div></div>
+            <div class="mt-4 text-sm text-slate-400">Dominant side: <span class="font-bold ${domColor}">${esc(r.dominant)}</span></div>
+          </div>
+        </div>
+
+        <div class="glass rounded-3xl p-5 sm:p-6">
+          <h4 class="font-semibold mb-2.5 flex items-center gap-2 text-white"><span class="text-blue-400">${ICON.doc}</span>AI Call Summary</h4>
+          <p class="text-slate-300 leading-relaxed">${esc(r.summary)}</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          ${listCard('Missed Playbook Steps', ICON.list, r.missed, 'No playbook steps were missed.')}
+          <div class="space-y-6">
+            ${listCard('Unanswered Customer Questions', ICON.help, r.unanswered, 'Every customer question was answered.')}
+            ${listCard('Negative Phrases Detected', ICON.ban, r.negatives, 'No negative phrases were detected.')}
+          </div>
+        </div>
+
+        <div class="rounded-3xl p-5 sm:p-6" style="background:linear-gradient(135deg,rgba(37,99,235,.28),rgba(59,130,246,.10));backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);box-shadow:inset 0 1px 0 rgba(255,255,255,.12), 0 24px 48px -24px rgba(37,99,235,.55), 0 0 0 1px rgba(59,130,246,.22)">
+          <h4 class="font-semibold mb-2.5 flex items-center gap-2 text-blue-100"><span class="text-blue-300">${ICON.bulb}</span>Manager Coaching Tip <span class="text-[10px] font-bold uppercase tracking-[.12em] px-2 py-0.5 rounded-full bg-white/10 text-blue-100">For supervisor review</span></h4>
+          <p class="text-white leading-relaxed text-lg">${esc(r.tip)}</p>
+        </div>
+
+        <details class="glass rounded-3xl p-5 sm:p-6"${isAudioEntry ? ' open' : ''}>
+          <summary class="cursor-pointer font-semibold flex items-center justify-between text-white">
+            <span class="flex items-center gap-2"><span class="text-blue-400">${ICON.chat}</span>Full Call Captions <span class="text-xs font-normal text-slate-400">(${r.turns.length} turns)</span></span>
+            <span class="text-slate-400">${ICON.chev}</span>
+          </summary>
+          <div class="mt-5 space-y-3 max-h-[480px] overflow-y-auto pr-1">${transcriptHtml}</div>
+        </details>
+      </div>`;
+    el.results.classList.remove('hidden');
+  }
+
+  function badge(score) {
+    const st = scoreStyle(score);
+    return `<span class="inline-flex items-center justify-center min-w-[2.75rem] px-2.5 py-1 rounded-full text-xs font-bold ${st.bg} ${st.text}">${score}/10</span>`;
+  }
+
+  function renderHistory() {
+    const hist = loadHistory();
+    el.historyEmpty.classList.toggle('hidden', hist.length > 0);
+    el.historyBody.innerHTML = hist.map(h => `
+      <tr class="hist-row" style="border-top:1px solid rgba(255,255,255,.04)" data-id="${esc(h.id)}" title="Select to reopen this audit">
+        <td class="px-5 py-3.5 font-semibold text-white whitespace-nowrap">${esc(h.agent)}</td>
+        <td class="px-5 py-3.5 text-slate-400 whitespace-nowrap">${esc(fmtDate(h.date))}</td>
+        <td class="px-5 py-3.5 text-center">${badge(h.result.overall)}</td>
+        <td class="px-5 py-3.5 text-center">${badge(h.result.adherence)}</td>
+        <td class="px-5 py-3.5 text-slate-300 max-w-md"><div style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(h.result.summary)}</div></td>
+      </tr>`).join('');
+  }
+  el.historyBody.addEventListener('click', e => {
+    const tr = e.target.closest('tr[data-id]');
+    if (!tr) return;
+    const entry = loadHistory().find(h => h.id === tr.dataset.id);
+    if (entry) { renderResult(entry); el.results.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  });
+
+  el.clearHistory.addEventListener('click', () => {
+    if (!loadHistory().length) { toast('There is no history to clear.', 'info', 2500); return; }
+    if (confirm('Delete ALL saved audits from this browser? This cannot be undone. Tip: download the Excel report first.')) {
+      try { localStorage.removeItem(STORE.history); } catch (_) {}
+      renderHistory();
+      toast('History cleared.', 'success', 2500);
+    }
+  });
+
+  /* ------------------------- Excel export ------------------------- */
+  el.exportBtn.addEventListener('click', () => {
+    const hist = loadHistory();
+    if (!hist.length) { toast('Run at least one audit first, then you can download the report.', 'info'); return; }
+    if (typeof XLSX === 'undefined') { toast('The Excel library could not load. Please check your internet connection and refresh the page.'); return; }
+    try {
+      const header = ['#', 'Agent Name', 'Date', 'Time', 'Overall Score (1-10)', 'Adherence Score (1-10)', 'Agent Talk %', 'Customer Talk %', 'Dominant Side', 'Summary', 'Missed Playbook Steps', 'Unanswered Questions', 'Negative Phrases', 'Manager Coaching Tip', 'Full Transcript / Captions', 'Source'];
+      const rows = hist.slice().reverse().map((h, i) => {
+        const d = new Date(h.date), r = h.result;
+        return [
+          i + 1, h.agent,
+          d.toLocaleDateString(), d.toLocaleTimeString(),
+          r.overall, r.adherence, r.agentPct, r.custPct, r.dominant,
+          r.summary, r.missed.join('\n'), r.unanswered.join('\n'), r.negatives.join('\n'), r.tip,
+          r.turns.map(t => `${t.time ? '[' + t.time + '] ' : ''}${t.speaker}: ${t.text}`).join('\n'),
+          h.source || 'Text'
+        ];
+      });
+      const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+      ws['!cols'] = [6, 22, 13, 12, 12, 14, 12, 14, 14, 60, 45, 45, 40, 55, 80, 32].map(w => ({ wch: w }));
+      ws['!freeze'] = { xSplit: 0, ySplit: 1 };
+      ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length, c: header.length - 1 } }) };
+
+      // Summary sheet
+      const avg = k => (hist.reduce((s, h) => s + h.result[k], 0) / hist.length).toFixed(1);
+      const byAgent = {};
+      hist.forEach(h => { (byAgent[h.agent] = byAgent[h.agent] || []).push(h.result); });
+      const agentRows = Object.keys(byAgent).sort().map(a => {
+        const L = byAgent[a], m = k => +(L.reduce((s, x) => s + x[k], 0) / L.length).toFixed(1);
+        return [a, L.length, m('overall'), m('adherence')];
+      });
+      const ws2 = XLSX.utils.aoa_to_sheet([
+        ['AI Call Center QA Report'], ['Generated', new Date().toLocaleString()], ['Total audits', hist.length],
+        ['Average overall score', +avg('overall')], ['Average adherence score', +avg('adherence')], [],
+        ['Agent', 'Calls Audited', 'Avg Overall', 'Avg Adherence'], ...agentRows
+      ]);
+      ws2['!cols'] = [{ wch: 28 }, { wch: 16 }, { wch: 14 }, { wch: 16 }];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'QA Audits');
+      XLSX.utils.book_append_sheet(wb, ws2, 'Summary');
+      const stamp = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `QA_Report_${stamp}.xlsx`);
+      toast('Excel report downloaded.', 'success', 3000);
+    } catch (err) {
+      toast('Could not create the Excel file: ' + (err.message || 'unknown error'));
+    }
+  });
+
+  /* ------------------------- Boot ------------------------- */
+  updateCount();
+  renderHistory();
+})();
+</script>
+</body>
+</html>
